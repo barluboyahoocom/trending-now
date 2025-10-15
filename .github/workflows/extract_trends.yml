@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: pip install feedparser deep-translator pandas
       - name: Run extractor
-        run: python extract_trends.py
+        run: python scripts/extract_trends.py
       - name: Commit and push data
         run: |
           git config --global user.name "github-actions"
