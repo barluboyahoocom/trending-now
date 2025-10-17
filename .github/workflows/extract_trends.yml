@@ -2,8 +2,8 @@ name: Extract Google Trends
 
 on:
   schedule:
-    - cron: "30 4 * * *"   # 07:30 Asia/Jerusalem (UTC+3)
-    - cron: "0 17 * * *"   # 20:00 Asia/Jerusalem (UTC+3)
+    - cron: "30 3 * * *"   # 06:30 Asia/Jerusalem (UTC+3)
+    - cron: "0 13 * * *"   # 18:30 Asia/Jerusalem (UTC+3)
   workflow_dispatch:
 
 permissions:
