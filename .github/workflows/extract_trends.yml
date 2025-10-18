@@ -28,7 +28,7 @@ jobs:
       - name: Run combined script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python scripts/fetch_and_summarize_trends.py
+        run: python scripts/extract_trends.py
 
       - name: Commit and push results
         run: |
