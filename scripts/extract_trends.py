@@ -66,8 +66,8 @@ def respect_rate_limits(tokens_used):
     global last_requests, total_tokens_this_min
 
     now = time.time()
-    last_requests = [t for t in last_requests if now - t < 60]
-    total_tokens_this_min = sum(t for _, t in last_requests)
+    last_requests = [(t, tok) for t, tok in last_requests if now - t < 60]
+    total_tokens_this_min = sum(tok for _, tok in last_requests)
 
     if len(last_requests) >= MAX_RPM:
         sleep_time = 60 - (now - last_requests[0][0])
@@ -81,7 +81,6 @@ def respect_rate_limits(tokens_used):
         last_requests = []
 
     last_requests.append((now, tokens_used))
-
 
 def summarize_with_gemini(trend, country, retries=1):
     if not GEMINI_API_KEY:
