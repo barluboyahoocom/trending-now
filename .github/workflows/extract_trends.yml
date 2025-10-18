@@ -1,8 +1,8 @@
-name: Extract Google Trends
+name: Extract Google Trends with Gemini Summary
 
 on:
   schedule:
-    - cron: "30 3 * * *"   # 06:30 Asia/Jerusalem (UTC+3)
+    - cron: "30 4 * * *"   # 07:30 Asia/Jerusalem (UTC+3)
     - cron: "0 13 * * *"   # 18:30 Asia/Jerusalem (UTC+3)
   workflow_dispatch:
 
@@ -10,23 +10,31 @@ permissions:
   contents: write
 
 jobs:
-  run-trends:
+  fetch-and-summarize:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+
       - name: Install dependencies
-        run: pip install feedparser deep-translator pandas
-      - name: Run extractor
-        run: python scripts/extract_trends.py
-      - name: Commit and push data
+        run: pip install feedparser deep-translator pandas requests
+
+      - name: Run combined script
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python scripts/fetch_and_summarize_trends.py
+
+      - name: Commit and push results
         run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "actions@users.noreply.github.com"
+          git config user.name github-actions
+          git config user.email github-actions@github.com
           git add data/trending_now_snapshot.csv
-          git commit -m "Auto update: $(date -u '+%Y-%m-%d %H:%M UTC')" || echo "No changes"
+          git commit -m "📰 Update trending snapshot"
           git push
+          
