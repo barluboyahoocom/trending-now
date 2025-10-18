@@ -3,11 +3,36 @@ from datetime import datetime, timezone
 from deep_translator import GoogleTranslator
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
-MAX_RPM = 9     
-MAX_TPM = 900000  
-TOKEN_ESTIMATE = 350 
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+# GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+
+GEMINI_20_FLASH_LIMITS = {
+    "MAX_RPM": 14,        # Requests per minute
+    "MAX_TPM": 1_000_000, # Tokens per minute
+    "MAX_RPD": 200,       # Requests per day
+    "TOKEN_ESTIMATE": 350 # Tokens used per request (approx)
+}
+
+GEMINI_25_FLASH_LIMITS = {
+    "MAX_RPM": 9,         # Requests per minute
+    "MAX_TPM": 250_000,    # Tokens per minute
+    "MAX_RPD": 250,        # Requests per day
+    "TOKEN_ESTIMATE": 350  # Tokens used per request (approx)
+}
+
+
+if "2.5" in GEMINI_URL:
+    LIMITS = GEMINI_25_FLASH_LIMITS
+    print("🤖 Using Gemini model: gemini-2.5-flash (⚡ higher accuracy)")
+else:
+    LIMITS = GEMINI_20_FLASH_LIMITS
+    print("🤖 Using Gemini model: gemini-2.0-flash (⚙️ faster, lower limits)")
+
+MAX_RPM = LIMITS["MAX_RPM"] # Requests per minute
+MAX_TPM = LIMITS["MAX_TPM"] # Tokens per minute
+MAX_RPD = LIMITS["MAX_RPD"] # Requests per day
+TOKEN_ESTIMATE = LIMITS["TOKEN_ESTIMATE"]  # Tokens used per request (approx)
 
 OUT_DIR = "data"
 OUT_FILE = os.path.join(OUT_DIR, "trending_now_snapshot.csv")
@@ -30,8 +55,9 @@ FEEDS = [
 FIELDNAMES = [
     "rank", "pulled_at_utc", "country_en",
     "title_original", "title_english",
-    "summary_hebrew", "link", "published"
+    "summary_hebrew", "link", "published", "search_volume"
 ]
+
 
 translator = GoogleTranslator(source="auto", target="en")
 now = datetime.now(timezone.utc).isoformat()
@@ -121,6 +147,11 @@ for geo, lang, country_en in FEEDS:
     for e in d.entries:
         title_raw = e.title.strip()
         title_translated = safe_translate(title_raw)
+        traffic_raw = getattr(e, "ht_approx_traffic", "")
+        if traffic_raw:
+            traffic_clean = re.sub(r"[^\d]", "", traffic_raw)
+        else:
+            traffic_clean = ""
         summary = summarize_with_gemini(title_translated, country_en)
         rows.append({
             "pulled_at_utc": now,
@@ -130,6 +161,7 @@ for geo, lang, country_en in FEEDS:
             "summary_hebrew": summary,
             "link": getattr(e, "link", ""),
             "published": getattr(e, "published", ""),
+            "search_volume": traffic_clean,
         })
         time.sleep(1)
 
