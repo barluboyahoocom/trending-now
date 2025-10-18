@@ -3,7 +3,12 @@ from datetime import datetime, timezone
 from deep_translator import GoogleTranslator
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+
+MAX_RPM = 9     
+MAX_TPM = 900000  
+TOKEN_ESTIMATE = 350 
+
 OUT_DIR = "data"
 OUT_FILE = os.path.join(OUT_DIR, "trending_now_snapshot.csv")
 
@@ -54,6 +59,30 @@ def safe_translate(text, retries=3):
             time.sleep(1)
     return restore_numbers(text)
 
+last_requests = []
+total_tokens_this_min = 0
+
+def respect_rate_limits(tokens_used):
+    global last_requests, total_tokens_this_min
+
+    now = time.time()
+    last_requests = [t for t in last_requests if now - t < 60]
+    total_tokens_this_min = sum(t for _, t in last_requests)
+
+    if len(last_requests) >= MAX_RPM:
+        sleep_time = 60 - (now - last_requests[0][0])
+        print(f"⏸️ Reached RPM limit ({MAX_RPM}). Sleeping {sleep_time:.1f}s...")
+        time.sleep(max(1, sleep_time))
+
+    if total_tokens_this_min + tokens_used > MAX_TPM:
+        print("⏸️ Reached TPM limit. Waiting 60s...")
+        time.sleep(60)
+        total_tokens_this_min = 0
+        last_requests = []
+
+    last_requests.append((now, tokens_used))
+
+
 def summarize_with_gemini(trend, country, retries=1):
     if not GEMINI_API_KEY:
         return "⚠️ Missing GEMINI_API_KEY"
@@ -68,6 +97,7 @@ def summarize_with_gemini(trend, country, retries=1):
     headers = {"x-goog-api-key": GEMINI_API_KEY}
 
     for attempt in range(1, retries + 1):
+        respect_rate_limits(TOKEN_ESTIMATE)
         try:
             r = requests.post(GEMINI_URL, headers=headers, json=payload, timeout=30)
             data = r.json()
@@ -76,7 +106,6 @@ def summarize_with_gemini(trend, country, retries=1):
                 return text.strip()
         except Exception as e:
             print(f"⚠️ Attempt {attempt} failed for '{trend}': {e}")
-        # המתנה הולכת וגדלה בין הניסיונות
         wait_time = min(30, attempt * 10)
         time.sleep(wait_time)
 
