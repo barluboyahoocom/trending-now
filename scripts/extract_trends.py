@@ -36,6 +36,27 @@ TOKEN_ESTIMATE = LIMITS["TOKEN_ESTIMATE"]  # Tokens used per request (approx)
 
 OUT_DIR = "data"
 OUT_FILE = os.path.join(OUT_DIR, "trending_now_snapshot.csv")
+if os.path.exists(OUT_FILE):
+    print("🧹 Cleaning existing duplicate rows before run...")
+    df = pd.read_csv(OUT_FILE, encoding="utf-8-sig")
+
+    if not df.empty and all(col in df.columns for col in ["country_en", "title_original", "published"]):
+        df["dup_key"] = (
+            df["country_en"].astype(str).str.strip() + "_" +
+            df["title_original"].astype(str).str.strip() + "_" +
+            df["published"].astype(str).str.strip()
+        )
+        before = len(df)
+        df = df.sort_values(by=["rank"]).drop_duplicates(subset=["dup_key"], keep="first")
+        df = df.drop(columns=["dup_key"])
+        after = len(df)
+        if before != after:
+            print(f"✅ Removed {before - after} old duplicate rows.")
+            df.to_csv(OUT_FILE, index=False, encoding="utf-8-sig")
+        else:
+            print("✅ No duplicates found in existing file.")
+    else:
+        print("⚠️ Skipped cleanup — missing expected columns in existing file.")
 
 FEEDS = [
     ("LB", "ar", "Lebanon"),
@@ -171,6 +192,13 @@ if os.path.exists(OUT_FILE):
     new_df = pd.DataFrame(rows)
     new_df.insert(0, "rank", 1)
     combined = pd.concat([new_df, old_df], ignore_index=True)
+    combined["dup_key"] = (
+        combined["country_en"].astype(str).str.strip() + "_" +
+        combined["title_original"].astype(str).str.strip() + "_" +
+        combined["published"].astype(str).str.strip()
+        )
+    combined = combined.sort_values(by=["rank"]).drop_duplicates(subset=["dup_key"], keep="first")
+    combined = combined.drop(columns=["dup_key"])
 else:
     new_df = pd.DataFrame(rows)
     new_df.insert(0, "rank", 1)
