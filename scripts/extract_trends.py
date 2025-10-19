@@ -6,6 +6,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 # GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
+# GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
 GEMINI_20_FLASH_LIMITS = {
     "MAX_RPM": 14,        # Requests per minute
@@ -21,13 +22,22 @@ GEMINI_25_FLASH_LIMITS = {
     "TOKEN_ESTIMATE": 350  # Tokens used per request (approx)
 }
 
+GEMINI_25_FLASH_LITE_LIMITS = {
+    "MAX_RPM": 15,         # Requests per minute
+    "MAX_TPM": 250_000,    # Tokens per minute
+    "MAX_RPD": 1000,       # Requests per day
+    "TOKEN_ESTIMATE": 350  # Tokens per request (approx)
+}
 
-if "2.5" in GEMINI_URL:
+if "2.5-flash-lite" in GEMINI_URL:
+    LIMITS = GEMINI_25_FLASH_LITE_LIMITS
+    print("Using Gemini model: gemini-2.5-flash-lite")
+elif "2.5-flash" in GEMINI_URL:
     LIMITS = GEMINI_25_FLASH_LIMITS
-    print("🤖 Using Gemini model: gemini-2.5-flash (⚡ higher accuracy)")
+    print("Using Gemini model: gemini-2.5-flash")
 else:
     LIMITS = GEMINI_20_FLASH_LIMITS
-    print("🤖 Using Gemini model: gemini-2.0-flash (⚙️ faster, lower limits)")
+    print("Using Gemini model: gemini-2.0-flash")
 
 MAX_RPM = LIMITS["MAX_RPM"] # Requests per minute
 MAX_TPM = LIMITS["MAX_TPM"] # Tokens per minute
@@ -42,7 +52,6 @@ if os.path.exists(OUT_FILE):
     df = pd.read_csv(OUT_FILE, encoding="utf-8-sig")
 
     if not df.empty and all(col in df.columns for col in ["country_en", "title_original", "published"]):
-        # חילוץ תאריך בלבד מתוך ה־published
         df["published_date"] = pd.to_datetime(df["published"], errors="coerce").dt.date.astype(str)
         df["dup_key"] = (
             df["country_en"].astype(str).str.strip() + "_" +
@@ -56,12 +65,12 @@ if os.path.exists(OUT_FILE):
         after = len(df)
 
         if before != after:
-            print(f"✅ Removed {before - after} old duplicate rows (same trend & date).")
+            print(f"Removed {before - after} old duplicate rows (same trend & date).")
             df.to_csv(OUT_FILE, index=False, encoding="utf-8-sig")
         else:
-            print("✅ No duplicates found in existing file.")
+            print("No duplicates found in existing file.")
     else:
-        print("⚠️ Skipped cleanup — missing expected columns in existing file.")
+        print("Skipped cleanup — missing expected columns in existing file.")
 
 FEEDS = [
     ("LB", "ar", "Lebanon"),
@@ -123,11 +132,11 @@ def respect_rate_limits(tokens_used):
 
     if len(last_requests) >= MAX_RPM:
         sleep_time = 60 - (now - last_requests[0][0])
-        print(f"⏸️ Reached RPM limit ({MAX_RPM}). Sleeping {sleep_time:.1f}s...")
+        print(f"Reached RPM limit ({MAX_RPM}). Sleeping {sleep_time:.1f}s...")
         time.sleep(max(1, sleep_time))
 
     if total_tokens_this_min + tokens_used > MAX_TPM:
-        print("⏸️ Reached TPM limit. Waiting 60s...")
+        print("Reached TPM limit. Waiting 60s...")
         time.sleep(60)
         total_tokens_this_min = 0
         last_requests = []
@@ -136,13 +145,18 @@ def respect_rate_limits(tokens_used):
 
 def summarize_with_gemini(trend, country, retries=1):
     if not GEMINI_API_KEY:
-        return "⚠️ Missing GEMINI_API_KEY"
+        return "Missing GEMINI_API_KEY"
 
     prompt = f"""
-אתה כעת עובר על הטרנד "{trend}" שעלה בשעות האחרונות במדינת "{country}".
-אני מבקש ממך ב-3 שורות קצרות בעברית לסכם בצורה טבעית וברורה:
-1. מה נושא הטרנד (למשל משחק כדורגל, שחקן, נושא פוליטי וכו').
-2. מה קרה במדינה בנושא הזה.
+קראת עכשיו על הטרנד "{trend}" שעלה בשעות האחרונות במדינת "{country}".
+סכם אותו בעברית טבעית וברורה, בשלוש שורות בלבד:
+
+1️כתוב בשורה אחת מהו נושא הטרנד (לדוגמה: ספורט, פוליטיקה, תרבות, אישיות מפורסמת וכו').
+2️ כתוב בשורה אחת מה קרה או מה מעורר עניין בטרנד הזה במדינה.
+3️ אם אפשר, הוסף בשורה השלישית הקשר קצר – למה אנשים מדברים על זה כעת.
+
+נא כתוב בסגנון תקשורתי, אנושי וענייני (לא כמו תרגום מכונה או רשימה יבשה).
+אל תשתמש במילים כמו "הטרנד הוא..." או "הנושא עוסק ב...", אלא ישר בתוכן.
 """
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     headers = {"x-goog-api-key": GEMINI_API_KEY}
@@ -156,7 +170,7 @@ def summarize_with_gemini(trend, country, retries=1):
             if text and "No response" not in text:
                 return text.strip()
         except Exception as e:
-            print(f"⚠️ Attempt {attempt} failed for '{trend}': {e}")
+            print(f"Attempt {attempt} failed for '{trend}': {e}")
         wait_time = min(30, attempt * 10)
         time.sleep(wait_time)
 
@@ -166,7 +180,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 rows = []
 
 for geo, lang, country_en in FEEDS:
-    print(f"🌍 Fetching {country_en} ({geo})...")
+    print(f"Fetching {country_en} ({geo})...")
     url = f"https://trends.google.com/trending/rss?geo={geo}&hl={lang}"
     d = feedparser.parse(url)
 
@@ -211,7 +225,7 @@ else:
     new_df.insert(0, "rank", 1)
     combined = new_df
 
-print("\n🔁 Checking for previous 'No response' summaries...")
+print("\nChecking for previous 'No response' summaries...")
 retry_mask = (combined["summary_hebrew"].astype(str).str.contains("No response")) | \
              (combined["summary_hebrew"].astype(str).str.startswith("⚠️"))
 no_response_df = combined[retry_mask].copy()
@@ -225,10 +239,10 @@ if not no_response_df.empty:
         combined.at[idx, "summary_hebrew"] = new_summary
         print(f"↻ Retried: {trend[:50]} → {new_summary[:40]}")
 else:
-    print("✅ No missing summaries found.")
+    print("No missing summaries found.")
 
 combined.to_csv(OUT_FILE, index=False, encoding="utf-8-sig")
 
-print(f"\n✅ Saved {len(rows)} new trends with summaries.")
-print(f"📁 Output file: {os.path.abspath(OUT_FILE)}")
-print(f"📊 Total rows: {len(combined)}")
+print(f"\nSaved {len(rows)} new trends with summaries.")
+print(f"Output file: {os.path.abspath(OUT_FILE)}")
+print(f"Total rows: {len(combined)}")
