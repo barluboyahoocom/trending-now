@@ -211,7 +211,27 @@ if os.path.exists(OUT_FILE):
     new_df = pd.DataFrame(rows)
     new_df.insert(0, "rank", 1)
     combined = pd.concat([new_df, old_df], ignore_index=True)
-    combined["published_date"] = pd.to_datetime(combined["published"], errors="coerce").dt.date.astype(str)
+    
+    # delete at 4.11.25 because sometimes the date retrieved isnt at the format we need.
+    # combined["published_date"] = pd.to_datetime(combined["published"], errors="coerce").dt.date.astype(str)
+
+    # add at 4.11.25
+    # Convert 'published' column safely to datetime
+    combined["published"] = pd.to_datetime(
+        combined["published"],
+        errors="coerce",                # ערכים לא תקינים → NaT במקום להפיל את הקוד
+        utc=True,
+        infer_datetime_format=True      # מזהה פורמטים כמו Fri, 17 Oct 2025 07:30:00 -0700
+    )
+    
+    # Check if any invalid dates found
+    invalid_count = combined["published"].isna().sum()
+    if invalid_count > 0:
+        print(f"⚠️ Found {invalid_count} invalid 'published' values that could not be parsed as dates.")
+    
+    # Extract just the date part
+    combined["published_date"] = combined["published"].dt.date.astype(str).fillna("unknown")
+
     combined["dup_key"] = (
         combined["country_en"].astype(str).str.strip() + "_" +
         combined["title_original"].astype(str).str.strip() + "_" +
