@@ -2,18 +2,19 @@ import os, time, re, requests, feedparser, pandas as pd
 from datetime import datetime, timezone
 from deep_translator import GoogleTranslator
 
+#################################################################################################################
+USE_AI = False
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+requests_today = 0
 
 # GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 # GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 # GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
-#GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-#GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
-#GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+# GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+# GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
+# GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b:generateContent"
-
-
-
 
 GEMMA_LIMITS = {
     "MAX_RPM": 25,
@@ -50,8 +51,6 @@ GEMINI_3_FLASH_LIMITS = {
     "TOKEN_ESTIMATE": 450  # Gemini 3 משתמש ביותר טוקנים
 }
 
-requests_today = 0
-
 if "gemma-3" in GEMINI_URL:
     LIMITS = GEMMA_LIMITS
     print("Using model: gemma-3", flush=True)
@@ -67,11 +66,11 @@ elif "2.5-flash" in GEMINI_URL:
 else:
     LIMITS = GEMINI_20_FLASH_LIMITS
     print("Using Gemini model: gemini-2.0-flash", flush=True)
-
 MAX_RPM = LIMITS["MAX_RPM"] # Requests per minute
 MAX_TPM = LIMITS["MAX_TPM"] # Tokens per minute
 MAX_RPD = LIMITS["MAX_RPD"] # Requests per day
 TOKEN_ESTIMATE = LIMITS["TOKEN_ESTIMATE"]  # Tokens used per request (approx)
+#################################################################################################################
 
 OUT_DIR = "data"
 OUT_FILE = os.path.join(OUT_DIR, "trending_now_snapshot.csv")
@@ -241,9 +240,12 @@ for geo, lang, country_en in FEEDS:
             f"   → [{country_en}] ({idx}/{total_trends}) Start: {title_translated[:60]}",
             flush=True
         )
-    
-        # summary = summarize_with_gemini(title_translated, country_en)
-        summary =""
+        ####################################################################################################3
+        if USE_AI:
+            summary = summarize_with_gemini(title_translated, country_en)
+        else:
+            summary = ""
+        ####################################################################################################
         print(
             f"   ✓ [{country_en}] ({idx}/{total_trends}) Done",
             flush=True
@@ -301,22 +303,22 @@ else:
     new_df = pd.DataFrame(rows)
     new_df.insert(0, "rank", 1)
     combined = new_df
-
-print("\nChecking for previous 'No response' summaries...", flush=True)
-retry_mask = (combined["summary_hebrew"].astype(str).str.contains("No response")) | \
-             (combined["summary_hebrew"].astype(str).str.startswith("⚠️"))
-no_response_df = combined[retry_mask].copy()
-
-if not no_response_df.empty:
-    print(f"Found {len(no_response_df)} items without summary. Retrying Gemini up to 3 times...", flush=True)
-    for idx, row in no_response_df.iterrows():
-        trend = row["title_english"]
-        country = row["country_en"]
-        new_summary = summarize_with_gemini(trend, country, retries=3)
-        combined.at[idx, "summary_hebrew"] = new_summary
-        print(f"↻ Retried: {trend[:50]} → {new_summary[:40]}", flush=True)
+if USE_AI:
+    print("\nChecking for previous 'No response' summaries...", flush=True)
+    retry_mask = (combined["summary_hebrew"].astype(str).str.contains("No response")) | \
+                 (combined["summary_hebrew"].astype(str).str.startswith("⚠️"))
+    no_response_df = combined[retry_mask].copy()
+    
+    if not no_response_df.empty:
+        print(f"Found {len(no_response_df)} items without summary. Retrying Gemini up to 3 times...", flush=True)
+        for idx, row in no_response_df.iterrows():
+            trend = row["title_english"]
+            country = row["country_en"]
+            new_summary = summarize_with_gemini(trend, country, retries=3)
+            combined.at[idx, "summary_hebrew"] = new_summary
+            print(f"↻ Retried: {trend[:50]} → {new_summary[:40]}", flush=True)
 else:
-    print("No missing summaries found.", flush=True)
+    print("ℹ️ AI disabled — skipping summary retry step.", flush=True)
 
 combined.to_csv(OUT_FILE, index=False, encoding="utf-8-sig")
 
