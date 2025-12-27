@@ -7,7 +7,9 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 # GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 # GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+#GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
+
 
 
 GEMINI_20_FLASH_LIMITS = {
@@ -31,7 +33,17 @@ GEMINI_25_FLASH_LITE_LIMITS = {
     "TOKEN_ESTIMATE": 350  # Tokens per request (approx)
 }
 
-if "2.5-flash-lite" in GEMINI_URL:
+GEMINI_3_FLASH_LIMITS = {
+    "MAX_RPM": 6,          # פחות בקשות בדקה
+    "MAX_TPM": 300_000,
+    "MAX_RPD": 100,        # free tier שמרני
+    "TOKEN_ESTIMATE": 450  # Gemini 3 משתמש ביותר טוקנים
+}
+
+if "gemini-3" in GEMINI_URL:
+    LIMITS = GEMINI_3_FLASH_LIMITS
+    print("Using Gemini model: gemini-3-flash-preview", flush=True)
+elif "2.5-flash-lite" in GEMINI_URL:
     LIMITS = GEMINI_25_FLASH_LITE_LIMITS
     print("Using Gemini model: gemini-2.5-flash-lite", flush=True)
 elif "2.5-flash" in GEMINI_URL:
@@ -159,6 +171,7 @@ def summarize_with_gemini(trend, country, retries=1):
 
 נא כתוב בסגנון תקשורתי, אנושי וענייני (לא כמו תרגום מכונה או רשימה יבשה).
 אל תשתמש במילים כמו "הטרנד הוא..." או "הנושא עוסק ב...", אלא ישר בתוכן.
+ענה רק בטקסט רגיל, ללא Markdown, ללא כותרות וללא אימוג׳ים.
 """
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     headers = {"x-goog-api-key": GEMINI_API_KEY}
@@ -166,7 +179,7 @@ def summarize_with_gemini(trend, country, retries=1):
     for attempt in range(1, retries + 1):
         respect_rate_limits(TOKEN_ESTIMATE)
         try:
-            r = requests.post(GEMINI_URL, headers=headers, json=payload, timeout=30)
+            r = requests.post(GEMINI_URL, headers=headers, json=payload, timeout=(5, 20))
             data = r.json()
             text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
             if text and "No response" not in text:
@@ -182,19 +195,28 @@ os.makedirs(OUT_DIR, exist_ok=True)
 rows = []
 
 for geo, lang, country_en in FEEDS:
-    print(f"Fetching {country_en} ({geo})...", flush=True)
+    print(f"\n🌍 Country start: {country_en} ({geo})", flush=True)
     url = f"https://trends.google.com/trending/rss?geo={geo}&hl={lang}"
     d = feedparser.parse(url)
-
-    for e in d.entries:
+    
+    total_trends = len(d.entries)
+    print(f"   Found {total_trends} trends", flush=True)
+    
+    for idx, e in enumerate(d.entries, start=1):
         title_raw = e.title.strip()
         title_translated = safe_translate(title_raw)
-        traffic_raw = getattr(e, "ht_approx_traffic", "")
-        if traffic_raw:
-            traffic_clean = re.sub(r"[^\d]", "", traffic_raw)
-        else:
-            traffic_clean = ""
+    
+        print(
+            f"   → [{country_en}] ({idx}/{total_trends}) Start: {title_translated[:60]}",
+            flush=True
+        )
+    
         summary = summarize_with_gemini(title_translated, country_en)
+    
+        print(
+            f"   ✓ [{country_en}] ({idx}/{total_trends}) Done",
+            flush=True
+        )
         rows.append({
             "pulled_at_utc": now,
             "country_en": country_en,
