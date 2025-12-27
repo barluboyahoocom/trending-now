@@ -9,10 +9,18 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 # GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent"
 #GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 #GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent"
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+#GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b:generateContent"
 
 
 
+
+GEMMA_LIMITS = {
+    "MAX_RPM": 25,
+    "MAX_TPM": 15_000,
+    "MAX_RPD": 14_000,
+    "TOKEN_ESTIMATE": 250
+}
 
 GEMINI_20_FLASH_LIMITS = {
     "MAX_RPM": 14,        # Requests per minute
@@ -44,8 +52,10 @@ GEMINI_3_FLASH_LIMITS = {
 
 requests_today = 0
 
-
-if "gemini-3" in GEMINI_URL:
+if "gemma-3" in GEMINI_URL:
+    LIMITS = GEMMA_LIMITS
+    print("Using model: gemma-3", flush=True)
+elif "gemini-3" in GEMINI_URL:
     LIMITS = GEMINI_3_FLASH_LIMITS
     print("Using Gemini model: gemini-3-flash-preview", flush=True)
 elif "2.5-flash-lite" in GEMINI_URL:
