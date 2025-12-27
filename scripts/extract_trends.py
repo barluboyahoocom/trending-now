@@ -40,6 +40,9 @@ GEMINI_3_FLASH_LIMITS = {
     "TOKEN_ESTIMATE": 450  # Gemini 3 משתמש ביותר טוקנים
 }
 
+requests_today = 0
+
+
 if "gemini-3" in GEMINI_URL:
     LIMITS = GEMINI_3_FLASH_LIMITS
     print("Using Gemini model: gemini-3-flash-preview", flush=True)
@@ -177,10 +180,25 @@ def summarize_with_gemini(trend, country, retries=1):
     headers = {"x-goog-api-key": GEMINI_API_KEY}
 
     for attempt in range(1, retries + 1):
+        global requests_today
+        if requests_today >= MAX_RPD:
+            print("🛑 Reached daily Gemini request limit. Stopping.", flush=True)
+            return "❌ Daily quota reached"
+        requests_today += 1
+
         respect_rate_limits(TOKEN_ESTIMATE)
         try:
             r = requests.post(GEMINI_URL, headers=headers, json=payload, timeout=(5, 20))
+
+            if r.status_code != 200:
+                print(
+                    f"❌ Gemini HTTP {r.status_code}: {r.text[:200]}",
+                    flush=True
+                )
+                return "❌ Gemini error"
+            
             data = r.json()
+
             text = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
             if text and "No response" not in text:
                 return text.strip()
@@ -205,7 +223,8 @@ for geo, lang, country_en in FEEDS:
     for idx, e in enumerate(d.entries, start=1):
         title_raw = e.title.strip()
         title_translated = safe_translate(title_raw)
-    
+        traffic_raw = getattr(e, "ht_approx_traffic", "")
+        traffic_clean = re.sub(r"[^\d]", "", traffic_raw) if traffic_raw else ""
         print(
             f"   → [{country_en}] ({idx}/{total_trends}) Start: {title_translated[:60]}",
             flush=True
@@ -217,6 +236,8 @@ for geo, lang, country_en in FEEDS:
             f"   ✓ [{country_en}] ({idx}/{total_trends}) Done",
             flush=True
         )
+
+
         rows.append({
             "pulled_at_utc": now,
             "country_en": country_en,
