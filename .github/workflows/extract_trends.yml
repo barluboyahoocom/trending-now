@@ -1,7 +1,7 @@
 name: Extract Google Trends with Gemini Summary
 
 on:
-  schedule:
+  #schedule:
     #- cron: "30 4 * * *"   # 07:30 Asia/Jerusalem (UTC+3)
     #- cron: "30 16 * * *"  # 19:30 Asia/Jerusalem (UTC+3)
   workflow_dispatch:
