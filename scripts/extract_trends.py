@@ -33,13 +33,13 @@ GEMINI_25_FLASH_LITE_LIMITS = {
 
 if "2.5-flash-lite" in GEMINI_URL:
     LIMITS = GEMINI_25_FLASH_LITE_LIMITS
-    print("Using Gemini model: gemini-2.5-flash-lite")
+    print("Using Gemini model: gemini-2.5-flash-lite", flush=True)
 elif "2.5-flash" in GEMINI_URL:
     LIMITS = GEMINI_25_FLASH_LIMITS
-    print("Using Gemini model: gemini-2.5-flash")
+    print("Using Gemini model: gemini-2.5-flash", flush=True)
 else:
     LIMITS = GEMINI_20_FLASH_LIMITS
-    print("Using Gemini model: gemini-2.0-flash")
+    print("Using Gemini model: gemini-2.0-flash", flush=True)
 
 MAX_RPM = LIMITS["MAX_RPM"] # Requests per minute
 MAX_TPM = LIMITS["MAX_TPM"] # Tokens per minute
@@ -50,7 +50,7 @@ OUT_DIR = "data"
 OUT_FILE = os.path.join(OUT_DIR, "trending_now_snapshot.csv")
 
 if os.path.exists(OUT_FILE):
-    print("🧹 Cleaning existing duplicate rows before run...")
+    print("🧹 Cleaning existing duplicate rows before run...", flush=True)
     df = pd.read_csv(OUT_FILE, encoding="utf-8-sig")
 
     if not df.empty and all(col in df.columns for col in ["country_en", "title_original", "published"]):
@@ -67,12 +67,12 @@ if os.path.exists(OUT_FILE):
         after = len(df)
 
         if before != after:
-            print(f"Removed {before - after} old duplicate rows (same trend & date).")
+            print(f"Removed {before - after} old duplicate rows (same trend & date).", flush=True)
             df.to_csv(OUT_FILE, index=False, encoding="utf-8-sig")
         else:
-            print("No duplicates found in existing file.")
+            print("No duplicates found in existing file.", flush=True)
     else:
-        print("Skipped cleanup — missing expected columns in existing file.")
+        print("Skipped cleanup — missing expected columns in existing file.", flush=True)
 
 FEEDS = [
     ("LB", "ar", "Lebanon"),
@@ -138,7 +138,7 @@ def respect_rate_limits(tokens_used):
         time.sleep(max(1, sleep_time))
 
     if total_tokens_this_min + tokens_used > MAX_TPM:
-        print("Reached TPM limit. Waiting 60s...")
+        print("Reached TPM limit. Waiting 60s...", flush=True)
         time.sleep(60)
         total_tokens_this_min = 0
         last_requests = []
@@ -172,7 +172,7 @@ def summarize_with_gemini(trend, country, retries=1):
             if text and "No response" not in text:
                 return text.strip()
         except Exception as e:
-            print(f"Attempt {attempt} failed for '{trend}': {e}")
+            print(f"Attempt {attempt} failed for '{trend}': {e}", flush=True)
         wait_time = min(30, attempt * 10)
         time.sleep(wait_time)
 
@@ -182,7 +182,7 @@ os.makedirs(OUT_DIR, exist_ok=True)
 rows = []
 
 for geo, lang, country_en in FEEDS:
-    print(f"Fetching {country_en} ({geo})...")
+    print(f"Fetching {country_en} ({geo})...", flush=True)
     url = f"https://trends.google.com/trending/rss?geo={geo}&hl={lang}"
     d = feedparser.parse(url)
 
@@ -229,7 +229,7 @@ if os.path.exists(OUT_FILE):
     # Check if any invalid dates found
     invalid_count = combined["published"].isna().sum()
     if invalid_count > 0:
-        print(f"⚠️ Found {invalid_count} invalid 'published' values that could not be parsed as dates.")
+        print(f"⚠️ Found {invalid_count} invalid 'published' values that could not be parsed as dates.", flush=True)
     
     # Extract just the date part
     combined["published_date"] = combined["published"].dt.date.astype(str).fillna("unknown")
@@ -247,24 +247,24 @@ else:
     new_df.insert(0, "rank", 1)
     combined = new_df
 
-print("\nChecking for previous 'No response' summaries...")
+print("\nChecking for previous 'No response' summaries...", flush=True)
 retry_mask = (combined["summary_hebrew"].astype(str).str.contains("No response")) | \
              (combined["summary_hebrew"].astype(str).str.startswith("⚠️"))
 no_response_df = combined[retry_mask].copy()
 
 if not no_response_df.empty:
-    print(f"Found {len(no_response_df)} items without summary. Retrying Gemini up to 3 times...")
+    print(f"Found {len(no_response_df)} items without summary. Retrying Gemini up to 3 times...", flush=True)
     for idx, row in no_response_df.iterrows():
         trend = row["title_english"]
         country = row["country_en"]
         new_summary = summarize_with_gemini(trend, country, retries=3)
         combined.at[idx, "summary_hebrew"] = new_summary
-        print(f"↻ Retried: {trend[:50]} → {new_summary[:40]}")
+        print(f"↻ Retried: {trend[:50]} → {new_summary[:40]}", flush=True)
 else:
-    print("No missing summaries found.")
+    print("No missing summaries found.", flush=True)
 
 combined.to_csv(OUT_FILE, index=False, encoding="utf-8-sig")
 
-print(f"\nSaved {len(rows)} new trends with summaries.")
-print(f"Output file: {os.path.abspath(OUT_FILE)}")
-print(f"Total rows: {len(combined)}")
+print(f"\nSaved {len(rows)} new trends with summaries.", flush=True)
+print(f"Output file: {os.path.abspath(OUT_FILE)}", flush=True)
+print(f"Total rows: {len(combined)}", flush=True)
