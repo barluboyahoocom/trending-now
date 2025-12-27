@@ -242,8 +242,8 @@ for geo, lang, country_en in FEEDS:
             flush=True
         )
     
-        summary = summarize_with_gemini(title_translated, country_en)
-    
+        # summary = summarize_with_gemini(title_translated, country_en)
+        summary =""
         print(
             f"   ✓ [{country_en}] ({idx}/{total_trends}) Done",
             flush=True
