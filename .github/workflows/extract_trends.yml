@@ -1,8 +1,8 @@
-name: Extract Google Trends with Gemini Summary
+name: Extract Google Trends
 
 on:
   schedule:
-    - cron: "0 * * * *"   # every hour (UTC)
+    - cron: "0 12 * * *"
   workflow_dispatch:
 
 permissions:
@@ -27,7 +27,7 @@ jobs:
       - name: Run combined script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python scripts/extract_trends.py
+        run: python scripts/extract_trends_v4.py
 
       - name: Commit and push results
         run: |
@@ -36,4 +36,3 @@ jobs:
           git add data/trending_now_snapshot.csv
           git commit -m "📰 Update trending snapshot"
           git push
-          
