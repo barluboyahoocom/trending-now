@@ -115,4 +115,7 @@ if os.path.exists(file_path):
     df_existing = pd.read_csv(file_path)
     df = pd.concat([df_existing, df], ignore_index=True)
 
+cols_to_check = [col for col in df.columns if col != "snapshot"]
+df = df.drop_duplicates(subset=cols_to_check)
+
 df.to_csv(file_path, index=False, encoding="utf-8-sig")
