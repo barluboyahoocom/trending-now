@@ -27,6 +27,14 @@ LANGUAGE_CODES = {
     "fa": "fa-IR",
     "ru": "ru-RU"
 }
+MYMEMORY_EMAIL = os.getenv("MYMEMORY_EMAIL")
+
+DAILY_CHAR_LIMIT = 50000 if MYMEMORY_EMAIL else 5000
+
+print("\n========== MYMEMORY CONFIG ==========", flush=True)
+print(f"Email configured: {bool(MYMEMORY_EMAIL)}", flush=True)
+print(f"Daily character limit: {DAILY_CHAR_LIMIT:,}", flush=True)
+print("=====================================\n", flush=True)
 
 translators = {}
 
@@ -59,10 +67,10 @@ def safe_translate(text, source_lang):
             if source_code not in translators:
                 translators[source_code] = MyMemoryTranslator(
                     source=source_code,
-                    target="en-GB"
+                    target="en-GB",
+                    email=MYMEMORY_EMAIL
                 )
 
-            time.sleep(0.5)
             translated = translators[source_code].translate(text)
 
             if translated:
@@ -206,7 +214,20 @@ print(f"\n[TOTAL] Trends collected: {len(df)}", flush=True)
 print(f"[TOTAL] Texts requiring translation: {total_to_translate}", flush=True)
 print("==========================================\n", flush=True)
 
+total_characters = sum(
+    len(text)
+    for col in translation_columns
+    for text in df[col]
+    if isinstance(text, str)
+    and text.strip()
+    and not is_english(text)
+)
 
+print("\n========== CHARACTER WORKLOAD ==========", flush=True)
+print(f"Characters to translate: {total_characters:,}", flush=True)
+print(f"Daily limit: {DAILY_CHAR_LIMIT:,}", flush=True)
+print(f"Workload / daily limit: {total_characters / DAILY_CHAR_LIMIT:.1%}", flush=True)
+print("========================================\n", flush=True)
 
 for col in translation_columns:
     # Translate using the source language of each trend
