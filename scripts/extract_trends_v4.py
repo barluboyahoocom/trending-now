@@ -3,7 +3,7 @@ import requests
 import xml.etree.ElementTree as ET
 import pandas as pd
 from datetime import datetime
-from deep_translator import GoogleTranslator
+from deep_translator import MyMemoryTranslator
 import time
 
 FEEDS = [
@@ -21,28 +21,51 @@ FEEDS = [
     ("QA", "ar", "Qatar"),
 ]
 
-translator = GoogleTranslator(source="auto", target="en")
+LANGUAGE_CODES = {
+    "ar": "ar-SA",
+    "he": "he-IL",
+    "fa": "fa-IR",
+    "ru": "ru-RU"
+}
+
+translators = {}
+
 translation_progress = {
     "completed": 0,
     "success": 0,
     "failed": 0
 }
 
-def safe_translate(text):
+
+def safe_translate(text, source_lang):
     if not isinstance(text, str) or not text.strip():
         return None
 
     if is_english(text):
         return text
 
+    # Detect Hebrew and Cyrillic scripts
+    if any("\u0590" <= c <= "\u05FF" for c in text):
+        source_lang = "he"
+    elif any("\u0400" <= c <= "\u04FF" for c in text):
+        source_lang = "ru"
+
+    source_code = LANGUAGE_CODES.get(source_lang, "ar-SA")
+
     translated = None
 
     for attempt in range(3):
         try:
-            time.sleep(0.5)
-            translated = translator.translate(text)
+            if source_code not in translators:
+                translators[source_code] = MyMemoryTranslator(
+                    source=source_code,
+                    target="en-GB"
+                )
 
-            if translated is not None:
+            time.sleep(0.5)
+            translated = translators[source_code].translate(text)
+
+            if translated:
                 break
 
         except Exception as e:
@@ -56,7 +79,7 @@ def safe_translate(text):
 
     translation_progress["completed"] += 1
 
-    if translated is not None:
+    if translated:
         translation_progress["success"] += 1
         status = "SUCCESS"
     else:
@@ -186,8 +209,12 @@ print("==========================================\n", flush=True)
 
 
 for col in translation_columns:
-    # Translate to English
-    df[f"{col}_en"] = df[col].apply(safe_translate)
+    # Translate using the source language of each trend
+    df[f"{col}_en"] = df.apply(
+        lambda row: safe_translate(row[col], row["language"]),
+        axis=1
+    )
+
     # Use English translation, otherwise original text
     df[f"{col}_final"] = df[f"{col}_en"].fillna(df[col])
 
