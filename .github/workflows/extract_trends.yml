@@ -26,7 +26,7 @@ jobs:
 
       - name: Run combined script
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MYMEMORY_EMAIL: ${{ secrets.MYMEMORY_EMAIL }}
         run: python scripts/extract_trends_v4.py
 
       - name: Commit and push results
