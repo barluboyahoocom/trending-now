@@ -22,20 +22,61 @@ FEEDS = [
 ]
 
 translator = GoogleTranslator(source="auto", target="en")
+translation_progress = {
+    "completed": 0,
+    "success": 0,
+    "failed": 0
+}
+
 def safe_translate(text):
     if not isinstance(text, str) or not text.strip():
         return None
+
     if is_english(text):
         return text
+
+    translated = None
+
     for attempt in range(3):
         try:
             time.sleep(0.5)
-            return translator.translate(text)
+            translated = translator.translate(text)
+
+            if translated is not None:
+                break
+
         except Exception as e:
-            print(f"Translation attempt {attempt + 1} failed: {e}")
-            time.sleep(5 * (attempt + 1))
-    print(f"Translation skipped: {text}")
-    return None
+            print(
+                f"[RETRY] Attempt {attempt + 1}/3 failed: {e}",
+                flush=True
+            )
+
+            if attempt < 2:
+                time.sleep(5 * (attempt + 1))
+
+    translation_progress["completed"] += 1
+
+    if translated is not None:
+        translation_progress["success"] += 1
+        status = "SUCCESS"
+    else:
+        translation_progress["failed"] += 1
+        status = "FAILED"
+
+    completed = translation_progress["completed"]
+    remaining = total_to_translate - completed
+
+    print(
+        f"[TRANSLATE] {completed}/{total_to_translate} | "
+        f"Success: {translation_progress['success']} | "
+        f"Failed: {translation_progress['failed']} | "
+        f"Remaining: {remaining} | "
+        f"Status: {status}",
+        flush=True
+    )
+
+    return translated
+    
 def is_english(text):
     return all(ord(c) < 128 for c in text)
 
@@ -47,8 +88,14 @@ for geo, lang, country in FEEDS:
     url = f"https://trends.google.com/trending/rss?geo={geo}"
     response = requests.get(url, timeout=30)
     root = ET.fromstring(response.text)
+    items = root.findall(".//item")
+    print(
+        f"[FETCH] {country}: {len(items)} trends | "
+        f"Total so far: {len(rows) + len(items)}",
+        flush=True
+    )
 
-    for item in root.findall(".//item"):
+    for item in items:
         title = item.findtext("title")
         traffic = item.findtext("ht:approx_traffic", namespaces=ns)
 
@@ -114,12 +161,29 @@ for geo, lang, country in FEEDS:
         })
 
 df = pd.DataFrame(rows)
+print(f"\n[FETCH COMPLETE] Total trends collected: {len(df)}", flush=True)
+
 translation_columns = [
     "trend_title",
     "news_item_title_1",
     "news_item_title_2",
     "news_item_title_3"
 ]
+print("\n========== TRANSLATION WORKLOAD ==========", flush=True)
+total_to_translate = 0
+for col in translation_columns:
+    count = df[col].apply(
+        lambda x: isinstance(x, str)
+        and bool(x.strip())
+        and not is_english(x)
+    ).sum()
+    total_to_translate += count
+    print(f"[COUNT] {col}: {count} require translation", flush=True)
+print(f"\n[TOTAL] Trends collected: {len(df)}", flush=True)
+print(f"[TOTAL] Texts requiring translation: {total_to_translate}", flush=True)
+print("==========================================\n", flush=True)
+
+
 
 for col in translation_columns:
     # Translate to English
