@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 from datetime import datetime
 from deep_translator import GoogleTranslator
+import time
 
 FEEDS = [
     ("LB", "ar", "Lebanon"),
@@ -21,7 +22,20 @@ FEEDS = [
 ]
 
 translator = GoogleTranslator(source="auto", target="en")
-
+def safe_translate(text):
+    if not isinstance(text, str) or not text.strip():
+        return None
+    if is_english(text):
+        return text
+    for attempt in range(3):
+        try:
+            time.sleep(0.5)
+            return translator.translate(text)
+        except Exception as e:
+            print(f"Translation attempt {attempt + 1} failed: {e}")
+            time.sleep(5 * (attempt + 1))
+    print(f"Translation skipped: {text}")
+    return None
 def is_english(text):
     return all(ord(c) < 128 for c in text)
 
@@ -100,13 +114,18 @@ for geo, lang, country in FEEDS:
         })
 
 df = pd.DataFrame(rows)
+translation_columns = [
+    "trend_title",
+    "news_item_title_1",
+    "news_item_title_2",
+    "news_item_title_3"
+]
 
-for col in df.columns:
-    if any(skip in col.lower() for skip in ["url", "traffic", "date", "time", "snapshot"]):
-        continue
-    df[col] = df[col].apply(
-        lambda x: translator.translate(x) if isinstance(x, str) and not is_english(x) else x
-    )
+for col in translation_columns:
+    # Translate to English
+    df[f"{col}_en"] = df[col].apply(safe_translate)
+    # Use English translation, otherwise original text
+    df[f"{col}_final"] = df[f"{col}_en"].fillna(df[col])
 
 os.makedirs("data", exist_ok=True)
 file_path = os.path.join("data", "trending_now_snapshot.csv")
@@ -114,8 +133,5 @@ file_path = os.path.join("data", "trending_now_snapshot.csv")
 if os.path.exists(file_path):
     df_existing = pd.read_csv(file_path)
     df = pd.concat([df_existing, df], ignore_index=True)
-
-cols_to_check = [col for col in df.columns if col != "snapshot"]
-df = df.drop_duplicates(subset=cols_to_check)
 
 df.to_csv(file_path, index=False, encoding="utf-8-sig")
